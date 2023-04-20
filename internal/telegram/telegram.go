@@ -2,8 +2,8 @@ package telegram
 
 import (
 	"DC_NewsSender/internal/db/repositories"
-	"DC_NewsSender/internal/telegram/commands"
 	"DC_NewsSender/internal/telegram/controller"
+	"DC_NewsSender/internal/telegram/handlers"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"go.uber.org/zap"
@@ -49,10 +49,16 @@ func (bot *BotCore) Run() {
 
 func (bot *BotCore) handleUpdates(updates tgbotapi.UpdatesChannel) {
 	bot.controller.Logger.Info("Listening for updates")
-	cmdHandler, err := commands.CreateHandler(bot.controller)
-	if err != nil {
+	cmdHandler := handlers.CreateCommandHandler(bot.controller)
+	if cmdHandler == nil {
+		panic(cmdHandler)
+	}
+
+	if err := cmdHandler.SetCommands(); err != nil {
 		panic(err)
 	}
+
+	msgHandler := handlers.CreateMessageHandler(bot.controller)
 
 	for update := range updates {
 		if update.Message == nil {
@@ -63,7 +69,8 @@ func (bot *BotCore) handleUpdates(updates tgbotapi.UpdatesChannel) {
 			zap.String("user", update.Message.From.UserName),
 			zap.String("message", update.Message.Text))
 
-		if user := bot.controller.FindUser(update.Message.Chat.ID); user != nil {
+		if user, err := bot.controller.CreateUserService().FindById(update.Message.Chat.ID); err == nil {
+			msgHandler.HandleMessage(user, update)
 			cmdHandler.HandleCommand(user, update)
 		}
 	}
