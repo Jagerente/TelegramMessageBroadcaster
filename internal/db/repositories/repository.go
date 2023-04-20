@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"errors"
-	"fmt"
 )
 
 type Repository[T, K any] struct {
@@ -21,13 +20,17 @@ func (repo *Repository[T, K]) FindById(id K) (*T, error) {
 	return selectedValue, nil
 }
 
-func (repo *Repository[T, K]) FindBy(key string, value string) (*T, error) {
-	var selectedValue *T
+func (repo *Repository[T, K]) FindBy(selector string, values ...string) (*[]T, error) {
+	var selectedValue *[]T
 
 	var connection = repo.gormConnection
 
-	if result := connection.Where(fmt.Sprintf("%s = ?", key), value).First(&selectedValue); result.Error != nil {
+	if result := connection.Where(selector, values).Find(&selectedValue); result.Error != nil {
 		return nil, result.Error
+	}
+
+	if len(*selectedValue) < 1 {
+		return nil, errors.New("nothing found")
 	}
 
 	return selectedValue, nil
