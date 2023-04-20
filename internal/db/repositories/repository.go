@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"errors"
+
+	"gorm.io/gorm/clause"
 )
 
 type Repository[T, K any] struct {
@@ -13,7 +15,7 @@ func (repo *Repository[T, K]) FindById(id K) (*T, error) {
 
 	var connection = repo.gormConnection
 
-	if result := connection.First(&selectedValue, id); result.Error != nil {
+	if result := connection.Preload(clause.Associations).First(&selectedValue, id); result.Error != nil {
 		return nil, result.Error
 	}
 
@@ -25,7 +27,7 @@ func (repo *Repository[T, K]) FindBy(selector string, values ...string) (*[]T, e
 
 	var connection = repo.gormConnection
 
-	if result := connection.Where(selector, values).Find(&selectedValue); result.Error != nil {
+	if result := connection.Preload(clause.Associations).Where(selector, values).Find(&selectedValue); result.Error != nil {
 		return nil, result.Error
 	}
 
@@ -41,7 +43,7 @@ func (repo *Repository[T, K]) FindAll() (*[]T, error) {
 
 	var connection = repo.gormConnection
 
-	if result := connection.Find(&values); result.Error != nil {
+	if result := connection.Preload(clause.Associations).Find(&values); result.Error != nil {
 		return nil, result.Error
 	}
 
