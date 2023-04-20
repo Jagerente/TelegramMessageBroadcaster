@@ -55,7 +55,7 @@ func (provider *Provider) CreateAdminsRepo() IRepository[models.Admin, int64] {
 
 type IRepository[T any, K comparable] interface {
 	FindById(id K) (*T, error)
-	FindBy(key string, value string) (*T, error)
+	FindBy(selector string, values ...string) (*[]T, error)
 	FindAll() (*[]T, error)
 	Add(value *T) (*T, error)
 	Update(value *T) (*T, error)
