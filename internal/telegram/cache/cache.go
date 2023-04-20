@@ -10,6 +10,8 @@ var Languages models.List[string, models.Language]
 
 var Groups models.List[string, models.Group]
 
+var Messages models.List[uint64, models.Message]
+
 type ICache[T any, K comparable] interface {
 	Add(key K, value T)
 	Find(key K) *T
