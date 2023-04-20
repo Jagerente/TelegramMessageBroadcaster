@@ -1,6 +1,7 @@
-package commands
+package handlers
 
 import (
+	"DC_NewsSender/internal/telegram/commands"
 	"DC_NewsSender/internal/telegram/constants"
 	"DC_NewsSender/internal/telegram/controller"
 	"DC_NewsSender/internal/telegram/models"
@@ -16,22 +17,19 @@ type CommandHandler struct {
 	controller *controller.Controller
 }
 
-func CreateHandler(controller *controller.Controller) (*CommandHandler, error) {
-	if err := setCommands(controller); err != nil {
-		return nil, err
-	}
-	return &CommandHandler{controller: controller}, nil
+func CreateCommandHandler(controller *controller.Controller) *CommandHandler {
+	return &CommandHandler{controller: controller}
 }
 
-func setCommands(controller *controller.Controller) error {
-	api := controller.Api
+func (h *CommandHandler) SetCommands() error {
+	api := h.controller.Api
 	var cmds = []tgbotapi.BotCommand{}
-	for _, cmd := range commands {
+	for _, cmd := range commands.Commands {
 		cmds = append(cmds, tgbotapi.BotCommand{Command: cmd.Name, Description: cmd.Description})
 	}
 	cfg := tgbotapi.NewSetMyCommands(cmds...)
 
-	users, err := controller.ListUsers()
+	users, err := h.controller.CreateUserService().FindAll()
 	if err != nil {
 		return err
 	}
@@ -48,8 +46,8 @@ func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update
 	var cmd = h.parseCommand(user, update.Message)
 
 	if cmd.Name != "" {
-		var commandToExecute *command
-		for _, command := range commands {
+		var commandToExecute *commands.Command
+		for _, command := range commands.Commands {
 			if command.Name == cmd.Name {
 				commandToExecute = &command
 				break
@@ -59,33 +57,33 @@ func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update
 		if commandToExecute != nil {
 			h.controller.Logger.Debug("Handling command",
 				zap.String("msg", "Executing"),
-				zap.Any("cmd", commandToExecute))
+				zap.Any("cmd", commandToExecute.Name))
 
 			ctx := context.WithValue(context.Background(), constants.CtxInitiator, user)
 			ctx = context.WithValue(ctx, constants.CtxArgs, cmd.Arguments)
 			ctx = context.WithValue(ctx, constants.CtxController, h.controller)
+			ctx = context.WithValue(ctx, constants.CtxUser, user)
 
-			h.controller.Logger.Sugar().Infow("HandleCommand",
-				"user", ctx.Value(constants.CtxInitiator),
-				"command", commandToExecute)
-
-			result, err := commandToExecute.execute(ctx)
+			result, err := commandToExecute.Execute(ctx)
 			if err != nil {
 				if !strings.Contains(err.Error(), "Input") {
-					h.controller.SendMessage(user.Id, cmdError(err.Error()))
+					h.controller.ConfigureAndSendMessage(user.Id, cmdError(err.Error()))
 					return
 				}
 
-				h.controller.SendMessage(user.Id, err.Error())
+				h.controller.ConfigureAndSendMessage(user.Id, err.Error())
 				return
 			}
 
-			h.controller.SendMessage(user.Id, result)
-			h.controller.ChangeUserState(user, "")
+			h.controller.ConfigureAndSendMessage(user.Id, result)
+			user.State = ""
+			h.controller.CreateUserService().Update(user)
 			return
 		}
 
-		h.controller.SendMessage(user.Id, "Unknown command")
+		user.State = ""
+		h.controller.CreateUserService().Update(user)
+		h.controller.ConfigureAndSendMessage(user.Id, "Unknown command")
 	}
 }
 
@@ -105,7 +103,8 @@ func (h *CommandHandler) parseCommand(user *models.User, msg *tgbotapi.Message) 
 		command.Arguments = msg.CommandArguments()
 	}
 
-	h.controller.ChangeUserState(user, command.Name)
+	user.State = command.Name
+	h.controller.CreateUserService().Update(user)
 
 	command.Arguments = strings.TrimSpace(command.Arguments)
 
