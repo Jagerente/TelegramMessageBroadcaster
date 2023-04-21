@@ -23,19 +23,22 @@ func CreateMessageHandler(controller *controller.Controller) *MessageHandler {
 }
 
 func (h *MessageHandler) HandleMessage(user *models.User, update tgbotapi.Update) {
-	h.controller.Logger.Debug("HandleMessage",
-		zap.String("msg", "Executing"),
-		zap.Any("value", update.Message))
+	logger := h.controller.Logger.With(
+		zap.String("function", "HandleMessage"),
+		zap.Any("user", user),
+		zap.Any("message", update.Message),
+	)
+
+	logger.Debug("Handling message")
 
 	msgId, langId, text, photo := h.parseMessage(update.Message)
-	h.controller.Logger.Debug("HandleMessage",
-		zap.String("msg", "Parsed message"),
-		zap.Any("value", []string{msgId, langId, text, photo}))
+
 	if text == "" {
 		return
 	}
-	user.State = ""
-	h.controller.CreateUserService().Update(user)
+
+	h.controller.ClearUserState(user)
+
 	messageId, err := strconv.ParseUint(msgId, 10, 64)
 	if err != nil {
 		h.controller.ConfigureAndSendMessage(user.Id, cmdError("invalid message id.\nMust be positive number."))
@@ -72,9 +75,12 @@ func (h *MessageHandler) HandleMessage(user *models.User, update tgbotapi.Update
 }
 
 func (h *MessageHandler) parseMessage(msg *tgbotapi.Message) (string, string, string, string) {
-	h.controller.Logger.Debug("parseMessage",
-		zap.String("msg", "Parsing"),
-		zap.Any("value", msg))
+	logger := h.controller.Logger.With(
+		zap.String("function", "parseMessage"),
+		zap.Any("message", msg),
+	)
+
+	logger.Debug("Parsing message")
 
 	if msg == nil || (msg.Text == "" && msg.Photo == nil) {
 		return "", "", "", ""
@@ -110,6 +116,8 @@ func (h *MessageHandler) parseMessage(msg *tgbotapi.Message) (string, string, st
 	if match[submatchIndex] != "" {
 		text = strings.Replace(text, match[0], "", 1)
 	}
+
+	logger.Debug("Parsed message", zap.Any("value", []string{msgId, langId, text, photo}))
 
 	return msgId, langId, text, photo
 }

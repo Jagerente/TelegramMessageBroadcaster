@@ -15,6 +15,36 @@ type Controller struct {
 	Logger   *zap.Logger
 }
 
+func (c *Controller) UpdateCache() error {
+	if err := c.CreateUserService().UpdateCache(); err != nil {
+		return err
+	}
+
+	if err := c.CreateChatService().UpdateCache(); err != nil {
+		return err
+	}
+
+	if err := c.CreateLanguageService().UpdateCache(); err != nil {
+		return err
+	}
+
+	if err := c.CreateGroupService().UpdateCache(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) ClearUserState(user *models.User) {
+	user.State = ""
+	c.CreateUserService().Update(user)
+}
+
+func (c *Controller) SetUserState(user *models.User, state string) {
+	user.State = state
+	c.CreateUserService().Update(user)
+}
+
 func (c *Controller) ConfigureAndSendMessage(chatId int64, message string) error {
 	msg := tgbotapi.NewMessage(chatId, message)
 	_, err := c.Api.Send(msg)
@@ -70,6 +100,8 @@ func (c *Controller) CreateChatService() IService[models.Chat, int64] {
 }
 
 type IService[T any, ID comparable] interface {
+	ClearCache()
+	UpdateCache() error
 	FindByName(string) (*T, error)
 	FindById(ID) (*T, error)
 	FindBy(string, ...string) ([]T, error)

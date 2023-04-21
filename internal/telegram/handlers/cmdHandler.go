@@ -27,6 +27,14 @@ func (h *CommandHandler) SetCommands() error {
 	for _, cmd := range commands.Commands {
 		cmds = append(cmds, tgbotapi.BotCommand{Command: cmd.Name, Description: cmd.Description})
 	}
+
+	logger := h.controller.Logger.With(
+		zap.String("function", "SetCommands"),
+		zap.Any("commands", cmds),
+	)
+
+	logger.Debug("Setting commands list")
+
 	cfg := tgbotapi.NewSetMyCommands(cmds...)
 
 	users, err := h.controller.CreateUserService().FindAll()
@@ -39,10 +47,20 @@ func (h *CommandHandler) SetCommands() error {
 		api.Request(cfg)
 	}
 
+	logger.Debug("Set commands list", zap.Any("users", users))
+
 	return nil
 }
 
 func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update) {
+	logger := h.controller.Logger.With(
+		zap.String("function", "HandleCommand"),
+		zap.Any("user", user),
+		zap.Any("message", update.Message.Text),
+	)
+
+	logger.Debug("Handling command")
+
 	var cmd = h.parseCommand(user, update.Message)
 
 	if cmd.Name != "" {
@@ -55,9 +73,7 @@ func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update
 		}
 
 		if commandToExecute != nil {
-			h.controller.Logger.Debug("Handling command",
-				zap.String("msg", "Executing"),
-				zap.Any("cmd", commandToExecute.Name))
+			logger.Debug("Executing command", zap.Any("cmd", commandToExecute.Name))
 
 			ctx := context.WithValue(context.Background(), constants.CtxInitiator, user)
 			ctx = context.WithValue(ctx, constants.CtxArgs, cmd.Arguments)
@@ -65,33 +81,32 @@ func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update
 			ctx = context.WithValue(ctx, constants.CtxUser, user)
 
 			result, err := commandToExecute.Execute(ctx)
-			if err != nil {
-				if !strings.Contains(err.Error(), "Input") {
-					h.controller.ConfigureAndSendMessage(user.Id, cmdError(err.Error()))
-					return
-				}
-
-				h.controller.ConfigureAndSendMessage(user.Id, err.Error())
+			switch err {
+			case constants.ErrEmptyInput:
+				h.controller.ConfigureAndSendMessage(user.Id, fmt.Sprintf("Input %s", strings.Join(commandToExecute.Arguments.Names, ";")))
+				return
+			case nil:
+				h.controller.ConfigureAndSendMessage(user.Id, result)
+				h.controller.ClearUserState(user)
+				return
+			default:
+				h.controller.ConfigureAndSendMessage(user.Id, cmdError(err.Error()))
 				return
 			}
-
-			h.controller.ConfigureAndSendMessage(user.Id, result)
-			user.State = ""
-			h.controller.CreateUserService().Update(user)
-			return
 		}
 
-		user.State = ""
-		h.controller.CreateUserService().Update(user)
 		h.controller.ConfigureAndSendMessage(user.Id, "Unknown command")
 	}
 }
 
 func (h *CommandHandler) parseCommand(user *models.User, msg *tgbotapi.Message) *models.Command {
-	h.controller.Logger.Debug("Parsing command",
-		zap.String("msg", "Parsing"),
+	logger := h.controller.Logger.With(
+		zap.String("function", "parseCommand"),
 		zap.Any("user", user),
-		zap.Any("message", msg.Text))
+		zap.Any("message", msg.Text),
+	)
+
+	logger.Debug("Parsing command")
 
 	var command = &models.Command{
 		Name:      user.State,
@@ -103,15 +118,11 @@ func (h *CommandHandler) parseCommand(user *models.User, msg *tgbotapi.Message) 
 		command.Arguments = msg.CommandArguments()
 	}
 
-	user.State = command.Name
-	h.controller.CreateUserService().Update(user)
+	h.controller.SetUserState(user, command.Name)
 
 	command.Arguments = strings.TrimSpace(command.Arguments)
 
-	h.controller.Logger.Debug("Parsing command",
-		zap.String("msg", "Parsed"),
-		zap.Any("user", user),
-		zap.Any("cmd", command))
+	logger.Debug("Parsed", zap.Any("command", command))
 
 	return command
 }

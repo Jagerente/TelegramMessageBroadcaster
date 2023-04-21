@@ -44,15 +44,15 @@ func (bot *BotCore) Run() {
 
 	updates := bot.controller.Api.GetUpdatesChan(updateConfig)
 
+	bot.controller.UpdateCache()
+
 	bot.handleUpdates(updates)
 }
 
 func (bot *BotCore) handleUpdates(updates tgbotapi.UpdatesChannel) {
 	bot.controller.Logger.Info("Listening for updates")
+
 	cmdHandler := handlers.CreateCommandHandler(bot.controller)
-	if cmdHandler == nil {
-		panic(cmdHandler)
-	}
 
 	if err := cmdHandler.SetCommands(); err != nil {
 		panic(err)
@@ -65,11 +65,7 @@ func (bot *BotCore) handleUpdates(updates tgbotapi.UpdatesChannel) {
 			continue
 		}
 
-		bot.controller.Logger.Debug("Message Received",
-			zap.String("user", update.Message.From.UserName),
-			zap.String("message", update.Message.Text))
-
-		if user, err := bot.controller.CreateUserService().FindById(update.Message.Chat.ID); err == nil {
+		if user, _ := bot.controller.CreateUserService().FindById(update.Message.Chat.ID); user != nil {
 			msgHandler.HandleMessage(user, update)
 			cmdHandler.HandleCommand(user, update)
 		}

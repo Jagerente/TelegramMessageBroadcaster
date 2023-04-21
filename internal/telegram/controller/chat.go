@@ -3,6 +3,7 @@ package controller
 import (
 	db_models "DC_NewsSender/internal/db/models"
 	"DC_NewsSender/internal/db/repositories"
+	"DC_NewsSender/internal/telegram/cache"
 	"DC_NewsSender/internal/telegram/constants"
 	"DC_NewsSender/internal/telegram/models"
 
@@ -10,9 +11,43 @@ import (
 )
 
 type ChatService struct {
+	cache  cache.ICache[int64, models.Chat]
 	logger *zap.Logger
 	repo   repositories.IRepository[db_models.Chat, int64]
-	cache  *models.List[int64, models.Chat]
+}
+
+func (s *ChatService) ClearCache() {
+	logger := s.logger.With(
+		zap.String("function", "ClearCache"),
+	)
+
+	logger.Debug("Clearing cache")
+
+	s.cache.Clear()
+
+	logger.Debug("Cache cleared")
+}
+
+func (s *ChatService) UpdateCache() error {
+	logger := s.logger.With(
+		zap.String("function", "UpdateCache"),
+	)
+
+	logger.Debug("Updating cache")
+
+	s.ClearCache()
+	results, err := s.findAllFromDb()
+	if err != nil {
+		return err
+	}
+
+	for _, result := range results {
+		s.cache.Add(result.Id, result)
+	}
+
+	logger.Debug("Cache updated")
+
+	return nil
 }
 
 func (s *ChatService) FindBy(selector string, values ...string) ([]models.Chat, error) {
@@ -22,7 +57,7 @@ func (s *ChatService) FindBy(selector string, values ...string) ([]models.Chat, 
 		zap.Strings("values", values),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding chat")
 
 	dbResults, err := s.repo.FindBy(selector, values...)
 	if err != nil {
@@ -51,7 +86,7 @@ func (s *ChatService) FindById(id int64) (*models.Chat, error) {
 		zap.Int64("id", id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding chat")
 
 	if result := s.cache.Find(id); result != nil {
 		logger.Debug("Found chat in cache", zap.Any("chat", result))
@@ -79,7 +114,7 @@ func (s *ChatService) Add(chat *models.Chat) (*models.Chat, error) {
 		zap.Any("chat", chat),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding chat")
 
 	value, _ := s.FindById(chat.Id)
 	if value != nil {
@@ -110,7 +145,7 @@ func (s *ChatService) Update(chat *models.Chat) (*models.Chat, error) {
 		zap.Any("chat", chat),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Updating chat")
 
 	dbChat := db_models.Chat(*chat)
 	result, err := s.repo.Update(&dbChat)
@@ -121,7 +156,7 @@ func (s *ChatService) Update(chat *models.Chat) (*models.Chat, error) {
 
 	logger.Debug("Updated chat", zap.Any("result", result))
 
-	s.cache.List.Store(chat.Id, *chat)
+	s.cache.Add(chat.Id, *chat)
 
 	return chat, nil
 }
@@ -132,7 +167,7 @@ func (s *ChatService) Remove(id int64) error {
 		zap.Int64("id", id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing chat")
 
 	chatToDelete, _ := s.FindById(id)
 	if chatToDelete == nil {
@@ -158,7 +193,21 @@ func (s *ChatService) FindAll() ([]models.Chat, error) {
 		zap.String("function", "FindAll"),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding chats")
+
+	result := s.cache.FindAll()
+
+	logger.Debug("Found chats in cache")
+
+	return result, nil
+}
+
+func (s *ChatService) findAllFromDb() ([]models.Chat, error) {
+	logger := s.logger.With(
+		zap.String("function", "findAllFromDb"),
+	)
+
+	logger.Debug("Finding chats")
 
 	dbResults, err := s.repo.FindAll()
 	if err != nil {

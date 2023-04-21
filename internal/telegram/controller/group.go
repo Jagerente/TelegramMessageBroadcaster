@@ -3,6 +3,7 @@ package controller
 import (
 	db_models "DC_NewsSender/internal/db/models"
 	"DC_NewsSender/internal/db/repositories"
+	"DC_NewsSender/internal/telegram/cache"
 	"DC_NewsSender/internal/telegram/constants"
 	"DC_NewsSender/internal/telegram/models"
 
@@ -10,9 +11,43 @@ import (
 )
 
 type GroupService struct {
+	cache  *cache.Cache[string, models.Group]
 	logger *zap.Logger
 	repo   repositories.IRepository[db_models.Group, uint64]
-	cache  *models.List[string, models.Group]
+}
+
+func (s *GroupService) ClearCache() {
+	logger := s.logger.With(
+		zap.String("function", "ClearCache"),
+	)
+
+	logger.Debug("Clearing cache")
+
+	s.cache.Clear()
+
+	logger.Debug("Cache cleared")
+}
+
+func (s *GroupService) UpdateCache() error {
+	logger := s.logger.With(
+		zap.String("function", "UpdateCache"),
+	)
+
+	logger.Debug("Updating cache")
+
+	s.ClearCache()
+	results, err := s.findAllFromDb()
+	if err != nil {
+		return err
+	}
+
+	for _, result := range results {
+		s.cache.Add(result.Name, result)
+	}
+
+	logger.Debug("Cache updated")
+
+	return nil
 }
 
 func (s *GroupService) FindBy(selector string, values ...string) ([]models.Group, error) {
@@ -25,7 +60,7 @@ func (s *GroupService) FindByName(name string) (*models.Group, error) {
 		zap.String("name", name),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding group")
 
 	if result := s.cache.Find(name); result != nil {
 		logger.Debug("Found group in cache", zap.Any("group", result))
@@ -53,7 +88,16 @@ func (s *GroupService) FindById(id uint64) (*models.Group, error) {
 		zap.Uint64("id", id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding group")
+
+	results := s.cache.FindAll()
+
+	for _, result := range results {
+		if result.Id == id {
+			logger.Debug("Found group in cache", zap.Any("group", result))
+			return &result, nil
+		}
+	}
 
 	dbResult, err := s.repo.FindById(id)
 	if err != nil {
@@ -74,7 +118,7 @@ func (s *GroupService) Add(group *models.Group) (*models.Group, error) {
 		zap.Any("group", group),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding group")
 
 	value, _ := s.FindByName(group.Name)
 	if value != nil {
@@ -105,7 +149,7 @@ func (s *GroupService) Update(group *models.Group) (*models.Group, error) {
 		zap.Any("group", group),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Updating group")
 
 	dbGroup := db_models.Group(*group)
 	result, err := s.repo.Update(&dbGroup)
@@ -126,7 +170,7 @@ func (s *GroupService) Remove(id uint64) error {
 		zap.Uint64("id", id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing group")
 
 	groupToDelete, _ := s.FindById(id)
 	if groupToDelete == nil {
@@ -152,7 +196,21 @@ func (s *GroupService) FindAll() ([]models.Group, error) {
 		zap.String("function", "FindAll"),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding groups")
+
+	result := s.cache.FindAll()
+
+	logger.Debug("Found groups in cache")
+
+	return result, nil
+}
+
+func (s *GroupService) findAllFromDb() ([]models.Group, error) {
+	logger := s.logger.With(
+		zap.String("function", "findAllFromDb"),
+	)
+
+	logger.Debug("Finding groups")
 
 	dbResults, err := s.repo.FindAll()
 	if err != nil {

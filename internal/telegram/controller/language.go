@@ -3,6 +3,7 @@ package controller
 import (
 	db_models "DC_NewsSender/internal/db/models"
 	"DC_NewsSender/internal/db/repositories"
+	"DC_NewsSender/internal/telegram/cache"
 	"DC_NewsSender/internal/telegram/constants"
 	"DC_NewsSender/internal/telegram/models"
 
@@ -10,9 +11,43 @@ import (
 )
 
 type LanguageService struct {
+	cache  *cache.Cache[string, models.Language]
 	logger *zap.Logger
 	repo   repositories.IRepository[db_models.Language, uint64]
-	cache  *models.List[string, models.Language]
+}
+
+func (s *LanguageService) ClearCache() {
+	logger := s.logger.With(
+		zap.String("function", "ClearCache"),
+	)
+
+	logger.Debug("Clearing cache")
+
+	s.cache.Clear()
+
+	logger.Debug("Cache cleared")
+}
+
+func (s *LanguageService) UpdateCache() error {
+	logger := s.logger.With(
+		zap.String("function", "UpdateCache"),
+	)
+
+	logger.Debug("Updating cache")
+
+	s.ClearCache()
+	results, err := s.findAllFromDb()
+	if err != nil {
+		return err
+	}
+
+	for _, result := range results {
+		s.cache.Add(result.Name, result)
+	}
+
+	logger.Debug("Cache updated")
+
+	return nil
 }
 
 func (s *LanguageService) FindBy(selector string, values ...string) ([]models.Language, error) {
@@ -25,7 +60,7 @@ func (s *LanguageService) FindByName(name string) (*models.Language, error) {
 		zap.String("name", name),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding language")
 
 	if result := s.cache.Find(name); result != nil {
 		logger.Debug("Found language in cache", zap.Any("language", result))
@@ -53,7 +88,16 @@ func (s *LanguageService) FindById(id uint64) (*models.Language, error) {
 		zap.Uint64("id", id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding language")
+
+	results := s.cache.FindAll()
+
+	for _, result := range results {
+		if result.Id == id {
+			logger.Debug("Found language in cache", zap.Any("language", result))
+			return &result, nil
+		}
+	}
 
 	dbResult, err := s.repo.FindById(id)
 	if err != nil {
@@ -74,7 +118,7 @@ func (s *LanguageService) Add(language *models.Language) (*models.Language, erro
 		zap.Any("language", language),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding language")
 
 	value, _ := s.FindByName(language.Name)
 	if value != nil {
@@ -105,7 +149,7 @@ func (s *LanguageService) Update(language *models.Language) (*models.Language, e
 		zap.Any("language", language),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Updating language")
 
 	dbLang := db_models.Language(*language)
 	result, err := s.repo.Update(&dbLang)
@@ -126,7 +170,7 @@ func (s *LanguageService) Remove(id uint64) error {
 		zap.Uint64("id", id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing language")
 
 	langToDelete, _ := s.FindById(id)
 	if langToDelete == nil {
@@ -152,7 +196,21 @@ func (s *LanguageService) FindAll() ([]models.Language, error) {
 		zap.String("function", "FindAll"),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Finding languages")
+
+	result := s.cache.FindAll()
+
+	logger.Debug("Found languages in cache")
+
+	return result, nil
+}
+
+func (s *LanguageService) findAllFromDb() ([]models.Language, error) {
+	logger := s.logger.With(
+		zap.String("function", "findAllFromDb"),
+	)
+
+	logger.Debug("Finding languages")
 
 	dbResults, err := s.repo.FindAll()
 	if err != nil {
