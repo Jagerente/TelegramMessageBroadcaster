@@ -26,7 +26,7 @@ func addAdmin(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding user")
 
 	if _, err := userService.Add(models.CreateUser(id, name)); err != nil {
 		logger.Error("Failed to add user", zap.Error(err))
@@ -34,7 +34,7 @@ func addAdmin(ctx context.Context) (string, error) {
 	}
 
 	result := fmt.Sprintf("User [%d] %s has been added!", id, name)
-	logger.Debug("Finished", zap.String("result", result))
+	logger.Debug("User added", zap.String("result", result))
 
 	return result, nil
 }
@@ -52,7 +52,7 @@ func removeAdmin(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing user")
 
 	usrToDelete, err := userService.FindById(id)
 	if err != nil {
@@ -78,6 +78,8 @@ func removeAdmin(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	logger.Debug("Removed user")
+
 	response := fmt.Sprintf("%d has been removed!", id)
 
 	return response, nil
@@ -94,7 +96,7 @@ func listAllAdmins(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Listing all users")
 
 	var response strings.Builder
 	response.WriteString("Admins List:")
@@ -108,7 +110,7 @@ func listAllAdmins(ctx context.Context) (string, error) {
 		response.WriteString(fmt.Sprintf("\n [%d] %s", admin.Id, admin.Name))
 	}
 
-	logger.Debug("Finished", zap.String("response", response.String()))
+	logger.Debug("Listed all users", zap.String("response", response.String()))
 
 	return response.String(), nil
 }

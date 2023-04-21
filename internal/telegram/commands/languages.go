@@ -24,7 +24,7 @@ func addLanguage(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding language")
 
 	if _, err := langService.Add(&models.Language{Name: name}); err != nil {
 		logger.Error("Failed to add a language", zap.Error(err))
@@ -32,7 +32,8 @@ func addLanguage(ctx context.Context) (string, error) {
 	}
 
 	result := fmt.Sprintf("Language %s has been added!", name)
-	logger.Debug("Finished", zap.String("result", result))
+
+	logger.Debug("Added language")
 
 	return result, nil
 }
@@ -50,7 +51,7 @@ func removeLanguage(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing language")
 
 	if err := langService.Remove(id); err != nil {
 		logger.Error("Failed to remove language", zap.Error(err))
@@ -58,7 +59,8 @@ func removeLanguage(ctx context.Context) (string, error) {
 	}
 
 	response := fmt.Sprintf("Language %d has been removed!", id)
-	logger.Debug("Finished", zap.String("response", response))
+
+	logger.Debug("Removed language")
 
 	return response, nil
 }
@@ -74,7 +76,7 @@ func listAllLanguages(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Listing all languages")
 
 	var response strings.Builder
 	response.WriteString("Language List:")
@@ -89,7 +91,7 @@ func listAllLanguages(ctx context.Context) (string, error) {
 		response.WriteString(fmt.Sprintf("\n [%d] %s", language.Id, language.Name))
 	}
 
-	logger.Debug("Finished", zap.String("response", response.String()))
+	logger.Debug("Listed all languages")
 
 	return response.String(), nil
 }

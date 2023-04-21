@@ -24,7 +24,7 @@ func addGroup(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding group")
 
 	if _, err := groupService.Add(&models.Group{Name: name}); err != nil {
 		logger.Error("Failed to add a group", zap.Error(err))
@@ -32,7 +32,8 @@ func addGroup(ctx context.Context) (string, error) {
 	}
 
 	result := fmt.Sprintf("Group %s has been added!", name)
-	logger.Debug("Finished", zap.String("result", result))
+
+	logger.Debug("Added group", zap.String("result", result))
 
 	return result, nil
 }
@@ -50,7 +51,7 @@ func removeGroup(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing group")
 
 	if err := groupService.Remove(id); err != nil {
 		logger.Error("Failed to remove a group", zap.Error(err))
@@ -58,7 +59,8 @@ func removeGroup(ctx context.Context) (string, error) {
 	}
 
 	response := fmt.Sprintf("Group %d has been removed!", id)
-	logger.Debug("Finished", zap.String("response", response))
+
+	logger.Debug("Removed group", zap.String("response", response))
 
 	return response, nil
 }
@@ -74,7 +76,7 @@ func listAllGroups(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Listing all groups")
 
 	var response strings.Builder
 	response.WriteString("Group List:")
@@ -88,7 +90,7 @@ func listAllGroups(ctx context.Context) (string, error) {
 		response.WriteString(fmt.Sprintf("\n [%d] %s", group.Id, group.Name))
 	}
 
-	logger.Debug("Finished", zap.String("response", response.String()))
+	logger.Debug("Listed all groups", zap.String("response", response.String()))
 
 	return response.String(), nil
 }

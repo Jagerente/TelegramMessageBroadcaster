@@ -23,7 +23,7 @@ func listMessages(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Listing all messages")
 
 	var response strings.Builder
 	response.WriteString("Messages List:")
@@ -39,7 +39,7 @@ func listMessages(ctx context.Context) (string, error) {
 		response.WriteString(fmt.Sprintf("\n [%d]", key))
 	}
 
-	logger.Debug("Finished", zap.String("response", response.String()))
+	logger.Debug("Listed all messages", zap.String("response", response.String()))
 
 	return response.String(), nil
 }
@@ -55,7 +55,7 @@ func testMessages(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("start")
+	logger.Debug("Testing messages")
 
 	msg := cache.Messages.Find(id)
 	if msg == nil {
@@ -95,7 +95,7 @@ func testMessages(ctx context.Context) (string, error) {
 
 	response = fmt.Sprintf("%d messages sent.", counter)
 
-	logger.Debug("Finished", zap.String("response", response))
+	logger.Debug("Tested messages", zap.String("response", response))
 
 	return response, nil
 }
@@ -115,7 +115,7 @@ func sendMessages(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Sending message")
 
 	group, err := groupService.FindById(groupId)
 	if err != nil {
@@ -172,7 +172,7 @@ func sendMessages(ctx context.Context) (string, error) {
 		response += fmt.Sprintf("\nFailed to send to: %s", strings.Join(failed, ", "))
 	}
 
-	logger.Debug("Finished", zap.String("response", response))
+	logger.Debug("Sent message")
 
 	return response, nil
 }

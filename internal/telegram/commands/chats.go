@@ -30,7 +30,7 @@ func addChat(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Adding chat")
 
 	if lang, err := langService.FindById(langId); lang == nil {
 		logger.Error("Failed to find a language", zap.Error(err))
@@ -48,7 +48,7 @@ func addChat(ctx context.Context) (string, error) {
 	}
 
 	result := fmt.Sprintf("Chat %s has been added!", name)
-	logger.Debug("Finished", zap.String("result", result))
+	logger.Debug("Added chat", zap.String("result", result))
 
 	return result, nil
 }
@@ -66,7 +66,7 @@ func removeChat(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Removing chat")
 
 	if err := chatService.Remove(id); err != nil {
 		logger.Error("Failed to remove a group", zap.Error(err))
@@ -74,7 +74,8 @@ func removeChat(ctx context.Context) (string, error) {
 	}
 
 	result := fmt.Sprintf("Chat %d has been removed!", id)
-	logger.Debug("Finished", zap.String("result", result))
+
+	logger.Debug("Removed chat")
 
 	return result, nil
 }
@@ -90,7 +91,7 @@ func listAllChats(ctx context.Context) (string, error) {
 		zap.Int64("userID", user.Id),
 	)
 
-	logger.Debug("Started")
+	logger.Debug("Listing all chats")
 
 	var response strings.Builder
 	response.WriteString("Chat List:")
@@ -104,7 +105,7 @@ func listAllChats(ctx context.Context) (string, error) {
 		response.WriteString(fmt.Sprintf("\n [%d] %s", chat.Id, chat.Name))
 	}
 
-	logger.Debug("Finished", zap.String("response", response.String()))
+	logger.Debug("Listed all chats", zap.String("response", response.String()))
 
 	return response.String(), nil
 }
