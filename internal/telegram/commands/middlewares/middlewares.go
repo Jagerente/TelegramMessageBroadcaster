@@ -5,6 +5,7 @@ import (
 	"DC_NewsSender/internal/telegram/models"
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -38,19 +39,19 @@ func ParseInput(ctx *context.Context) error {
 		case reflect.Int, reflect.Int64:
 			val, err := strconv.ParseInt(arg, 10, 64)
 			if err != nil {
-				return constants.ErrInvalidInput
+				return fmt.Errorf("invalid %s", argNames[i])
 			}
 			*ctx = context.WithValue(*ctx, argNames[i], val)
 		case reflect.Uint, reflect.Uint64:
 			val, err := strconv.ParseUint(arg, 10, 64)
 			if err != nil {
-				return constants.ErrInvalidInput
+				return fmt.Errorf("invalid %s", argNames[i])
 			}
 			*ctx = context.WithValue(*ctx, argNames[i], val)
 		case reflect.String:
 			*ctx = context.WithValue(*ctx, argNames[i], arg)
 		default:
-			return constants.ErrInvalidInput
+			return fmt.Errorf("invalid %s", argNames[i])
 		}
 	}
 
@@ -63,7 +64,7 @@ func HasInput(ctx *context.Context) error {
 	var argsRequired = (*ctx).Value(constants.CtxArgsRequired).(models.Arguments)
 
 	if len(argsSplited) < len(argsRequired.Names) || args == "" {
-		return errors.New("Input " + strings.Join(argsRequired.Names, ";"))
+		return constants.ErrEmptyInput
 	}
 
 	return nil
