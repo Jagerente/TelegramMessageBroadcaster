@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"go.uber.org/zap"
 )
 
@@ -69,9 +68,7 @@ func testMessages(ctx context.Context) (string, error) {
 	switch msg.GetType() {
 	case models.PhotoMessage:
 		for _, text := range msg.Text {
-			msgToSend := tgbotapi.NewPhoto(user.Id, tgbotapi.FileID(msg.Photo))
-			msgToSend.Caption = text
-			if err := controller.Send(msgToSend); err != nil {
+			if err := controller.SendPhotoByID(user.Id, msg.Photo, text); err != nil {
 				logger.Error("Failed to send message", zap.Error(err))
 				continue
 			}
@@ -80,8 +77,7 @@ func testMessages(ctx context.Context) (string, error) {
 		}
 	case models.TextMessage:
 		for _, text := range msg.Text {
-			msgToSend := tgbotapi.NewMessage(user.Id, text)
-			if err := controller.Send(msgToSend); err != nil {
+			if err := controller.SendText(user.Id, text); err != nil {
 				logger.Error("Failed to send message", zap.Error(err))
 				continue
 			}
@@ -135,12 +131,14 @@ func sendMessages(ctx context.Context) (string, error) {
 	failed := []string{}
 
 	for _, chat := range chats {
+		if msg.Text[chat.LanguageId] == "" || !chat.IsActive {
+			continue
+		}
+
 		if chat.Group.Id == group.Id {
 			switch msg.GetType() {
 			case models.PhotoMessage:
-				msgToSend := tgbotapi.NewPhoto(chat.Id, tgbotapi.FileID(msg.Photo))
-				msgToSend.Caption = msg.Text[chat.LanguageId]
-				if err := controller.Send(msgToSend); err != nil {
+				if err := controller.SendPhotoByID(chat.Id, msg.Photo, msg.Text[chat.LanguageId]); err != nil {
 					logger.Error("Failed to send message", zap.Any("chat", chat), zap.Error(err))
 					failed = append(failed, chat.Name)
 					continue
@@ -148,8 +146,7 @@ func sendMessages(ctx context.Context) (string, error) {
 				counter++
 				continue
 			case models.TextMessage:
-				msgToSend := tgbotapi.NewMessage(chat.Id, msg.Text[chat.LanguageId])
-				if err := controller.Send(msgToSend); err != nil {
+				if err := controller.SendText(chat.Id, msg.Text[chat.LanguageId]); err != nil {
 					logger.Error("Failed to send message", zap.Any("chat", chat), zap.Error(err))
 					failed = append(failed, chat.Name)
 					continue

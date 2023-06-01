@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"go.uber.org/zap"
+	tele "gopkg.in/telebot.v3"
 )
 
 type CommandHandler struct {
@@ -22,20 +22,17 @@ func CreateCommandHandler(controller *controller.Controller) *CommandHandler {
 }
 
 func (h *CommandHandler) SetCommands() error {
-	api := h.controller.Api
-	var cmds = []tgbotapi.BotCommand{}
+	bot := h.controller.Bot
+	var cmds = []tele.Command{}
 	for _, cmd := range commands.Commands {
-		cmds = append(cmds, tgbotapi.BotCommand{Command: cmd.Name, Description: cmd.Description})
+		cmds = append(cmds, tele.Command{Text: cmd.Name, Description: cmd.Description})
 	}
 
 	logger := h.controller.Logger.With(
 		zap.String("function", "SetCommands"),
-		zap.Any("commands", cmds),
 	)
 
-	logger.Debug("Setting commands list")
-
-	cfg := tgbotapi.NewSetMyCommands(cmds...)
+	logger.Debug("Setting commands list", zap.Any("commands", cmds))
 
 	users, err := h.controller.CreateUserService().FindAll()
 	if err != nil {
@@ -43,8 +40,12 @@ func (h *CommandHandler) SetCommands() error {
 	}
 
 	for _, user := range users {
-		cfg.Scope = &tgbotapi.BotCommandScope{Type: "chat", ChatID: user.Id}
-		api.Request(cfg)
+		commands := tele.CommandParams{Commands: cmds, Scope: &tele.CommandScope{Type: tele.CommandScopeChat, ChatID: user.Id}}
+		logger.Debug("Commands", zap.Any("obj", commands))
+		if err := bot.SetCommands(commands); err != nil {
+			return err
+		}
+
 	}
 
 	logger.Debug("Set commands list", zap.Any("users", users))
@@ -52,16 +53,16 @@ func (h *CommandHandler) SetCommands() error {
 	return nil
 }
 
-func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update) {
+func (h *CommandHandler) HandleCommand(user *models.User, tctx tele.Context) {
 	logger := h.controller.Logger.With(
 		zap.String("function", "HandleCommand"),
-		zap.Any("user", user),
-		zap.Any("message", update.Message.Text),
+		zap.Any("user", user.Id),
+		zap.Any("message", tctx.Message().Text),
 	)
 
 	logger.Debug("Handling command")
 
-	var cmd = h.parseCommand(user, update.Message)
+	var cmd = h.parseCommand(user, tctx)
 
 	if cmd.Name != "" {
 		var commandToExecute *commands.Command
@@ -83,48 +84,47 @@ func (h *CommandHandler) HandleCommand(user *models.User, update tgbotapi.Update
 			result, err := commandToExecute.Execute(ctx)
 			switch err {
 			case constants.ErrEmptyInput:
-				h.controller.ConfigureAndSendMessage(user.Id, fmt.Sprintf("Input %s", strings.Join(commandToExecute.Arguments.Names, ";")))
+				tctx.Send(fmt.Sprintf("Input %s", strings.Join(commandToExecute.Arguments.Names, " ")))
 				return
 			case nil:
-				h.controller.ConfigureAndSendMessage(user.Id, result)
+				tctx.Send(result)
 				h.controller.ClearUserState(user)
 				return
 			default:
-				h.controller.ConfigureAndSendMessage(user.Id, cmdError(err.Error()))
+				tctx.Send(cmdError(err.Error()))
 				return
 			}
 		}
 
-		h.controller.ConfigureAndSendMessage(user.Id, "Unknown command")
+		tctx.Send("Unknown command")
+		h.controller.ClearUserState(user)
 	}
 }
 
-func (h *CommandHandler) parseCommand(user *models.User, msg *tgbotapi.Message) *models.Command {
+func (h *CommandHandler) parseCommand(user *models.User, ctx tele.Context) *models.Command {
 	logger := h.controller.Logger.With(
 		zap.String("function", "parseCommand"),
 		zap.Any("user", user),
-		zap.Any("message", msg.Text),
+		zap.Any("message", ctx.Message().Text),
 	)
 
 	logger.Debug("Parsing command")
 
-	var command = &models.Command{
+	var cmd = &models.Command{
 		Name:      user.State,
-		Arguments: msg.Text,
+		Arguments: strings.Split(ctx.Message().Text, " "),
 	}
 
-	if command.Name == "" || msg.IsCommand() {
-		command.Name = msg.Command()
-		command.Arguments = msg.CommandArguments()
+	if cmd.Name == "" && strings.Contains(ctx.Message().Text, "/") {
+		cmd.Name = strings.ReplaceAll(strings.Split(ctx.Message().Text, " ")[0], "/", "")
+		cmd.Arguments = ctx.Args()
 	}
 
-	h.controller.SetUserState(user, command.Name)
+	h.controller.SetUserState(user, cmd.Name)
 
-	command.Arguments = strings.TrimSpace(command.Arguments)
+	logger.Debug("Parsed", zap.Any("command", cmd))
 
-	logger.Debug("Parsed", zap.Any("command", command))
-
-	return command
+	return cmd
 }
 
 func cmdError(err string, fields ...any) string {

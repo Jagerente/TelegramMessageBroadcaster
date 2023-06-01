@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 )
 
 type Middleware func(ctx *context.Context) error
@@ -24,7 +23,7 @@ func IsMaster(ctx *context.Context) error {
 }
 
 func ParseInput(ctx *context.Context) error {
-	var args = strings.Split((*ctx).Value(constants.CtxArgs).(string), ";")
+	var args = (*ctx).Value(constants.CtxArgs).([]string)
 	var argsRequired = (*ctx).Value(constants.CtxArgsRequired).(models.Arguments)
 
 	var argNames = argsRequired.Names
@@ -59,11 +58,10 @@ func ParseInput(ctx *context.Context) error {
 }
 
 func HasInput(ctx *context.Context) error {
-	var args = (*ctx).Value(constants.CtxArgs).(string)
-	var argsSplited = strings.Split(args, ";")
+	var args = (*ctx).Value(constants.CtxArgs).([]string)
 	var argsRequired = (*ctx).Value(constants.CtxArgsRequired).(models.Arguments)
 
-	if len(argsSplited) < len(argsRequired.Names) || args == "" {
+	if args == nil || len(args) < len(argsRequired.Names) {
 		return constants.ErrEmptyInput
 	}
 

@@ -4,12 +4,15 @@ import (
 	"DC_NewsSender/internal/db/repositories"
 	"DC_NewsSender/internal/telegram/controller"
 	"DC_NewsSender/internal/telegram/handlers"
+	"DC_NewsSender/internal/telegram/middlewares"
+	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tele "gopkg.in/telebot.v3"
+
 	"go.uber.org/zap"
 )
 
-type BotCore struct {
+type Core struct {
 	controller *controller.Controller
 }
 
@@ -20,36 +23,31 @@ type BotConfig struct {
 	Debug  bool
 }
 
-func CreateBotCore(cfg *BotConfig) (*BotCore, error) {
-	api, err := tgbotapi.NewBotAPI(cfg.Token)
+func CreateBotCore(cfg *BotConfig) (*Core, error) {
+	bot, err := tele.NewBot(tele.Settings{Token: cfg.Token, Poller: &tele.LongPoller{Timeout: 30 * time.Second}, Verbose: cfg.Debug})
+
 	if err != nil {
 		return nil, err
 	}
-
-	api.Debug = cfg.Debug
 
 	db := cfg.Db
 
 	logger := cfg.Logger
 
-	controller := &controller.Controller{Api: api, Provider: db, Logger: logger}
+	controller := &controller.Controller{Bot: bot, Provider: db, Logger: logger}
 
-	return &BotCore{controller: controller}, nil
+	return &Core{controller: controller}, nil
 }
 
-func (bot *BotCore) Run() {
-	updateConfig := tgbotapi.NewUpdate(0)
+func (c *Core) Run() {
+	c.controller.UpdateCache()
 
-	updateConfig.Timeout = 30
+	c.handleUpdates()
 
-	updates := bot.controller.Api.GetUpdatesChan(updateConfig)
-
-	bot.controller.UpdateCache()
-
-	bot.handleUpdates(updates)
+	c.controller.Bot.Start()
 }
 
-func (bot *BotCore) handleUpdates(updates tgbotapi.UpdatesChannel) {
+func (bot *Core) handleUpdates() {
 	bot.controller.Logger.Info("Listening for updates")
 
 	cmdHandler := handlers.CreateCommandHandler(bot.controller)
@@ -60,14 +58,32 @@ func (bot *BotCore) handleUpdates(updates tgbotapi.UpdatesChannel) {
 
 	msgHandler := handlers.CreateMessageHandler(bot.controller)
 
-	for update := range updates {
-		if update.Message == nil {
-			continue
+	adminOnly := bot.controller.Bot.Group()
+
+	adminOnly.Use(middlewares.Whitelist(bot.controller.CreateUserService()))
+
+	adminOnly.Handle(tele.OnText, func(c tele.Context) error {
+		user, err := bot.controller.CreateUserService().FindById(c.Sender().ID)
+		if err != nil {
+			bot.controller.Logger.Error(err.Error())
+
+			return err
 		}
 
-		if user, _ := bot.controller.CreateUserService().FindById(update.Message.Chat.ID); user != nil {
-			msgHandler.HandleMessage(user, update)
-			cmdHandler.HandleCommand(user, update)
+		msgHandler.HandleMessage(user, c)
+		cmdHandler.HandleCommand(user, c)
+		return nil
+	})
+
+	adminOnly.Handle(tele.OnPhoto, func(c tele.Context) error {
+		user, err := bot.controller.CreateUserService().FindById(c.Sender().ID)
+		if err != nil {
+			bot.controller.Logger.Error(err.Error())
+
+			return err
 		}
-	}
+
+		msgHandler.HandleMessage(user, c)
+		return nil
+	})
 }

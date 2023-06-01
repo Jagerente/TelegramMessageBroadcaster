@@ -5,12 +5,13 @@ import (
 	"DC_NewsSender/internal/telegram/cache"
 	"DC_NewsSender/internal/telegram/models"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	tele "gopkg.in/telebot.v3"
+
 	"go.uber.org/zap"
 )
 
 type Controller struct {
-	Api      *tgbotapi.BotAPI
+	Bot      *tele.Bot
 	Provider *repositories.Provider
 	Logger   *zap.Logger
 }
@@ -45,19 +46,15 @@ func (c *Controller) SetUserState(user *models.User, state string) {
 	c.CreateUserService().Update(user)
 }
 
-func (c *Controller) ConfigureAndSendMessage(chatId int64, message string) error {
-	msg := tgbotapi.NewMessage(chatId, message)
-	_, err := c.Api.Send(msg)
+func (c *Controller) SendText(chatId int64, text string) error {
+	_, err := c.Bot.Send(&tele.User{ID: chatId}, text, &tele.SendOptions{ParseMode: tele.ModeMarkdown})
 	return err
 }
 
-func (c *Controller) SendMessage(msg tgbotapi.MessageConfig) error {
-	_, err := c.Api.Send(msg)
-	return err
-}
-
-func (c *Controller) Send(msg tgbotapi.Chattable) error {
-	_, err := c.Api.Send(msg)
+func (c *Controller) SendPhotoByID(chatId int64, photoId string, caption string) error {
+	msg := &tele.Photo{File: tele.File{FileID: photoId}}
+	msg.Caption = caption
+	_, err := c.Bot.Send(&tele.User{ID: chatId}, msg, &tele.SendOptions{ParseMode: tele.ModeMarkdown})
 	return err
 }
 

@@ -23,7 +23,7 @@ type Config struct {
 }
 
 var (
-	bot    *telegram.BotCore
+	bot    *telegram.Core
 	orm    *gorm.DB
 	logger *zap.Logger
 )

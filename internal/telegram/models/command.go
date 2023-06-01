@@ -4,7 +4,7 @@ import "reflect"
 
 type Command struct {
 	Name      string
-	Arguments string
+	Arguments []string
 }
 
 type Arguments struct {
