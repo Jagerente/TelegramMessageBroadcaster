@@ -22,7 +22,6 @@ func CreateCommandHandler(controller *controller.Controller) *CommandHandler {
 }
 
 func (h *CommandHandler) SetCommands() error {
-	bot := h.controller.Bot
 	var cmds = []tele.Command{}
 	for _, cmd := range commands.Commands {
 		cmds = append(cmds, tele.Command{Text: cmd.Name, Description: cmd.Description})
@@ -40,12 +39,9 @@ func (h *CommandHandler) SetCommands() error {
 	}
 
 	for _, user := range users {
-		commands := tele.CommandParams{Commands: cmds, Scope: &tele.CommandScope{Type: tele.CommandScopeChat, ChatID: user.Id}}
-		logger.Debug("Commands", zap.Any("obj", commands))
-		if err := bot.SetCommands(commands); err != nil {
+		if err := h.controller.Bot.SetCommands(cmds, tele.CommandScope{Type: tele.CommandScopeChat, ChatID: user.Id}); err != nil {
 			return err
 		}
-
 	}
 
 	logger.Debug("Set commands list", zap.Any("users", users))
@@ -84,7 +80,7 @@ func (h *CommandHandler) HandleCommand(user *models.User, tctx tele.Context) {
 			result, err := commandToExecute.Execute(ctx)
 			switch err {
 			case constants.ErrEmptyInput:
-				tctx.Send(fmt.Sprintf("Input %s", strings.Join(commandToExecute.Arguments.Names, " ")))
+				tctx.Send(fmt.Sprintf("Input %s", strings.Join(commandToExecute.Arguments.Names, ";")))
 				return
 			case nil:
 				tctx.Send(result)
@@ -112,10 +108,10 @@ func (h *CommandHandler) parseCommand(user *models.User, ctx tele.Context) *mode
 
 	var cmd = &models.Command{
 		Name:      user.State,
-		Arguments: strings.Split(ctx.Message().Text, " "),
+		Arguments: strings.Split(ctx.Message().Text, ";"),
 	}
 
-	if cmd.Name == "" && strings.Contains(ctx.Message().Text, "/") {
+	if cmd.Name == "" && strings.Contains(ctx.Message().Text, "/") || strings.Contains(ctx.Message().Text, "/") {
 		cmd.Name = strings.ReplaceAll(strings.Split(ctx.Message().Text, " ")[0], "/", "")
 		cmd.Arguments = ctx.Args()
 	}
